@@ -373,6 +373,7 @@ WORKER_CYCLE:
             ip_oids = ip_oids.Add(ws.job[jgi].Items[ii].Key)
             keys_count++
             oids_val := ws.job[jgi].Items[ii].Oid
+            oids_val += ":"+fmt.Sprint(ws.job[jgi].Refresh)
             oids_val += ":"+const2str[ ws.job[jgi].Items[ii].Item_type ]
             oids_val += ":"+const2str[ ws.job[jgi].Items[ii].Value_type ]
             opts := ""
@@ -957,9 +958,9 @@ MAIN_LOOP: for {
         }
         if len(workers[ip]) == 0 {
           delete(workers, ip)
-        }
-        if red != nil && red.Err() == nil {
-          red.Do("PUBLISH", "queue_saved", "0:"+ip)
+          if red != nil && red.Err() == nil {
+            red.Do("PUBLISH", "queue_saved", "0:"+ip)
+          }
         }
       }
     } else {
