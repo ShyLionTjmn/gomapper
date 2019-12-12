@@ -959,7 +959,7 @@ MAIN_LOOP: for {
         if len(workers[ip]) == 0 {
           delete(workers, ip)
           if red != nil && red.Err() == nil {
-            red.Do("PUBLISH", "queue_saved", "0:"+ip)
+            red.Do("PUBLISH", "queue_saved", "0:"+ip+":deleted or paused")
           }
         }
       }
