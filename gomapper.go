@@ -573,7 +573,7 @@ ITEM:     for ii := 0; ii < len(ws.job[jgi].Items); ii++ {
 
         err = redm.Unlock(red)
 
-        red.Do("PUBLISH", "queue_saved", fmt.Sprintf("%d:%s", ws.queue, ws.dev_ip))
+        red.Do("PUBLISH", "queue_saved", fmt.Sprintf("%d:%s:scan done", ws.queue, ws.dev_ip))
       }
     }
 
