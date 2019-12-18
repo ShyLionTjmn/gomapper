@@ -567,7 +567,7 @@ ITEM:     for ii := 0; ii < len(ws.job[jgi].Items); ii++ {
         red.Send("DEL", data_key)
         red.Send("HSET", keys_args...)
         red.Send("HSET", data_args...)
-        red.Send("SET", last_result_key, "ok:"+strconv.FormatInt(work_start.Unix(), 10)+":"+strconv.FormatInt(save_time_i, 10))
+        red.Send("SET", last_result_key, "ok:"+strconv.FormatInt(work_start.Unix(), 10)+":"+strconv.FormatInt(save_time_i, 10)+":")
 
         _, err = red.Do("EXEC")
 
