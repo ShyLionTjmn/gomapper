@@ -653,17 +653,24 @@ ITEM:     for ii := 0; ii < len(ws.job[jgi].Items); ii++ {
   // time to exit
 }
 
-func read_devlist (red redis.Conn) ([]string, error) {
-  var ret []string
+func read_devlist (red redis.Conn) (M, error) {
+  ret := make(M)
   var err error
   var hash map[string]string
 
   hash, err = redis.StringMap(red.Do("HGETALL", "dev_list"))
   if err != nil { return nil, err }
 
-  for index, val := range hash {
-    if ip_reg.MatchString(index) && val == "run" {
-      ret = append(ret, index)
+  for ip, val := range hash {
+    a := strings.Split(val, ":")
+    if len(a) == 2 && ip_reg.MatchString(ip) && a[1] != "ignore" {
+      var t int64
+      t, err = strconv.ParseInt(a[0], 10, 64)
+      if err == nil  {
+        ret[ip] = make(M)
+        ret[ip].(M)["time"] = t
+        ret[ip].(M)["state"] = a[1]
+      }
     }
   }
 
@@ -733,7 +740,7 @@ func main() {
   //var err error
   var main_sleep_dur time.Duration
   var main_timer *time.Timer
-  var db_devlist []string
+  var db_devlist M
 
   data_ch := make(chan t_scanData, 10)
   workers := make(map[string]map[int]*t_workStruct)
@@ -900,45 +907,47 @@ MAIN_LOOP: for {
       db_devlist, err = read_devlist(red)
     }
     if err == nil {
-      for _, ip := range db_devlist {
+      for ip, _ := range db_devlist {
+        if db_devlist.Vs(ip, "state") == "run" {
 
-        _, exists := workers[ip]
+          _, exists := workers[ip]
 
-        if  exists {
-          for q,_ := range workers[ip] {
-            workers[ip][q].check=cycle_start
-          }
-        } else {
-          fmt.Println("Adding workers for "+ip)
+          if  exists {
+            for q,_ := range workers[ip] {
+              workers[ip][q].check=cycle_start
+            }
+          } else {
+            fmt.Println("Adding workers for "+ip)
 
-          ip_queues_key := fmt.Sprintf("ip_queues.%s", ip)
+            ip_queues_key := fmt.Sprintf("ip_queues.%s", ip)
 
-          _, err = red.Do("DEL", ip_queues_key)
+            _, err = red.Do("DEL", ip_queues_key)
 
-          if err == nil {
-            for q,_ := range joblist {
-              if err == nil {
-                _, err = red.Do("HSET", ip_queues_key, fmt.Sprint(q), fmt.Sprintf("%d:%d:queued:Queued", time.Now().Unix(), time.Now().Unix()))
+            if err == nil {
+              for q,_ := range joblist {
+                if err == nil {
+                  _, err = red.Do("HSET", ip_queues_key, fmt.Sprint(q), fmt.Sprintf("%d:%d:queued:Queued", time.Now().Unix(), time.Now().Unix()))
+                }
               }
             }
-          }
 
-          if err == nil {
-            workers[ip] = make(map[int]*t_workStruct)
+            if err == nil {
+              workers[ip] = make(map[int]*t_workStruct)
 
-            for q,_ := range joblist {
-              workers[ip][q]=&t_workStruct{
-                queue:	q,
-                dev_ip:	ip,
-                control_ch:	make(chan string, 1),
-                data_ch:	data_ch,
-                wg:	&wg,
-                added:	cycle_start,
-                check:	cycle_start,
-                job:	jobs_copy(joblist[q]),
+              for q,_ := range joblist {
+                workers[ip][q]=&t_workStruct{
+                  queue:	q,
+                  dev_ip:	ip,
+                  control_ch:	make(chan string, 1),
+                  data_ch:	data_ch,
+                  wg:	&wg,
+                  added:	cycle_start,
+                  check:	cycle_start,
+                  job:	jobs_copy(joblist[q]),
+                }
+                wg.Add(1)
+                go worker(workers[ip][q])
               }
-              wg.Add(1)
-              go worker(workers[ip][q])
             }
           }
         }
