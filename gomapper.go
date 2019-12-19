@@ -125,6 +125,7 @@ const (
   ioFail=1 << iota
   ioIfNot=1 << iota
   ioAuto=1 << iota
+  ioMul=1 << iota
 )
 
 var option2const = map[string]int{
@@ -133,6 +134,7 @@ var option2const = map[string]int{
   "mac":	ioMac,
   "arp":	ioArp,
   "auto":	ioAuto,
+  "mul":	ioAuto,
 }
 
 var optionArg = map[int]bool{
@@ -141,6 +143,7 @@ var optionArg = map[int]bool{
   ioArp:	true,
   ioMac:	true,
   ioAuto:	false,
+  ioMul:	true,
 }
 
 var const2option = map[int]string {
@@ -149,6 +152,7 @@ var const2option = map[int]string {
   ioArp:	"arp",
   ioMac:	"mac",
   ioAuto:	"auto",
+  ioMul:	"mul",
 }
 
 type t_scanData struct {
@@ -244,6 +248,7 @@ func worker(ws *t_workStruct) {
   keys_key := fmt.Sprintf("ip_keys.%d.%s", ws.queue, ws.dev_ip)
   oids_key := fmt.Sprintf("ip_oids.%d.%s", ws.queue, ws.dev_ip)
   queues_key := fmt.Sprintf("ip_queues.%s", ws.dev_ip)
+  graph_key := fmt.Sprintf("ip_graphs.%s", ws.dev_ip)
 
   redm := redmutex.New(lock_key)
 
@@ -270,6 +275,9 @@ func worker(ws *t_workStruct) {
   var val string
 
   var queue_keys map[string]bool
+
+  var graph_keys map[string]string
+  var graph_keys_time int64
 
 WORKER_CYCLE:
   for {
@@ -404,6 +412,23 @@ WORKER_CYCLE:
       red.Do("EXEC")
     }
 
+    if err == nil && red != nil {
+      var redstr string
+      redstr, err = redis.String(red.Do("HGET", graph_key, "time"))
+      if err == nil {
+        if i, _err := strconv.ParseInt(redstr, 10, 64); _err == nil && i > graph_keys_time {
+          graph_keys, err = redis.StringMap(red.Do("HGETALL", graph_key))
+          if err != nil {
+            graph_keys_time = 0
+          } else {
+            graph_keys_time = i
+          }
+        }
+      }
+    }
+
+    if err == redis.ErrNil { err = nil }
+
     last_report_time := time.Now()
     if err == nil && red != nil {
       report_time := time.Now().Unix()
@@ -471,6 +496,24 @@ ITEM:     for ii := 0; ii < len(ws.job[jgi].Items); ii++ {
 //fmt.Println(err.Error(), ws.job[jgi].Items[ii].Oid, ws.dev_ip, ws.queue)
               }
               break JG
+            }
+            if graph_keys_time > 0 {
+              switch ws.job[jgi].Items[ii].Item_type {
+              case itOne:
+                if _, ok := graph_keys[ ws.job[jgi].Items[ii].Key+".0" ]; ok {
+                  if red != nil && red.Err() == nil {
+                    red.Do("PUBLISH", "graph", ws.dev_ip+" "+ws.job[jgi].Items[ii].Key+".0 "+fmt.Sprint(key_value))
+                  }
+                }
+              case itTable:
+                for index, value := range key_value.(map[string]string) {
+                  if _, ok := graph_keys[ ws.job[jgi].Items[ii].Key+"."+index ]; ok {
+                    if red != nil && red.Err() == nil {
+                      red.Do("PUBLISH", "graph", ws.dev_ip+" "+ws.job[jgi].Items[ii].Key+"."+index+" "+fmt.Sprint(value))
+                    }
+                  }
+                }
+              }
             }
             now := time.Now()
             ws.job[jgi].Items[ii].Value = key_value
