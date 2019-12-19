@@ -128,15 +128,6 @@ const (
   ioMul=1 << iota
 )
 
-var option2const = map[string]int{
-  "fail":       ioFail,
-  "ifnot":	ioIfNot,
-  "mac":	ioMac,
-  "arp":	ioArp,
-  "auto":	ioAuto,
-  "mul":	ioAuto,
-}
-
 var optionArg = map[int]bool{
   ioFail:	false,
   ioIfNot:	true,
@@ -153,6 +144,12 @@ var const2option = map[int]string {
   ioMac:	"mac",
   ioAuto:	"auto",
   ioMul:	"mul",
+}
+
+var option2const = make(map[string]int)
+
+func init() {
+  for i, v := range const2option { option2const[v] = i }
 }
 
 type t_scanData struct {
@@ -496,6 +493,39 @@ ITEM:     for ii := 0; ii < len(ws.job[jgi].Items); ii++ {
 //fmt.Println(err.Error(), ws.job[jgi].Items[ii].Oid, ws.dev_ip, ws.queue)
               }
               break JG
+            }
+            if (ws.job[jgi].Items[ii].Options & ioMul) != 0 {
+fmt.Println("ioMul", ws.job[jgi].Items[ii].Opt_values[ioMul])
+              if multiplier, _err := strconv.ParseInt(ws.job[jgi].Items[ii].Opt_values[ioMul], 10, 64); _err == nil {
+fmt.Println(multiplier)
+                switch ws.job[jgi].Items[ii].Item_type {
+                case itOne:
+                  switch ws.job[jgi].Items[ii].Value_type {
+                  case vtInt, vtString:
+                    if v, _err := strconv.ParseInt(key_value.(string), 10, 64); _err == nil {
+                      key_value = strconv.FormatInt( v * multiplier, 10 )
+fmt.Println(key_value)
+                    }
+                  case vtUns:
+                    if v, _err := strconv.ParseUint(key_value.(string), 10, 64); _err == nil && multiplier >= 0 {
+                      key_value = strconv.FormatUint( v * uint64(multiplier), 10 )
+                    }
+                  }
+                case itTable:
+                  for index, value := range key_value.(map[string]string) {
+                    switch ws.job[jgi].Items[ii].Value_type {
+                    case vtInt, vtString:
+                      if v, _err := strconv.ParseInt(value, 10, 64); _err == nil {
+                        key_value.(map[string]string)[index] = strconv.FormatInt( v * multiplier, 10 )
+                      }
+                    case vtUns:
+                      if v, _err := strconv.ParseUint(value, 10, 64); _err == nil && multiplier >= 0 {
+                        key_value.(map[string]string)[index] = strconv.FormatUint( v * uint64(multiplier), 10 )
+                      }
+                    }
+                  }
+                }
+              }
             }
             if graph_keys_time > 0 {
               switch ws.job[jgi].Items[ii].Item_type {
