@@ -495,16 +495,16 @@ ITEM:     for ii := 0; ii < len(ws.job[jgi].Items); ii++ {
               break JG
             }
             if (ws.job[jgi].Items[ii].Options & ioMul) != 0 {
-fmt.Println("ioMul", ws.job[jgi].Items[ii].Opt_values[ioMul])
+//fmt.Println("ioMul", ws.job[jgi].Items[ii].Opt_values[ioMul])
               if multiplier, _err := strconv.ParseInt(ws.job[jgi].Items[ii].Opt_values[ioMul], 10, 64); _err == nil {
-fmt.Println(multiplier)
+//fmt.Println(multiplier)
                 switch ws.job[jgi].Items[ii].Item_type {
                 case itOne:
                   switch ws.job[jgi].Items[ii].Value_type {
                   case vtInt, vtString:
                     if v, _err := strconv.ParseInt(key_value.(string), 10, 64); _err == nil {
                       key_value = strconv.FormatInt( v * multiplier, 10 )
-fmt.Println(key_value)
+//fmt.Println(key_value)
                     }
                   case vtUns:
                     if v, _err := strconv.ParseUint(key_value.(string), 10, 64); _err == nil && multiplier >= 0 {
