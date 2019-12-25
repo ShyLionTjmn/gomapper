@@ -6,7 +6,7 @@ import (
   "strings"
   "strconv"
   "errors"
-  _ "time"
+  "time"
   "fmt"
 )
 
@@ -177,6 +177,9 @@ func getTableFunc(client *snmp.GoSNMP, oid string, expect_type int, report callb
   next_oid := oid
   cut_len := len(oid+".")
 
+if oid == ".1.3.6.1.2.1.2.2.1.8" {
+  fmt.Println(time.Now())
+}
   for res, err := client.GetBulk([]string{next_oid}, 0, 10); err == nil; res, err = client.GetBulk([]string{next_oid}, 0, 10) {
     if res.Error != snmp.NoError {
       return nil, errors.New(fmt.Sprintf("Error in PDU: %v", res.Error))
@@ -189,6 +192,9 @@ func getTableFunc(client *snmp.GoSNMP, oid string, expect_type int, report callb
 
     var last_oid string=""
 
+if oid == ".1.3.6.1.2.1.2.2.1.8" {
+  fmt.Println(res.Variables)
+}
     for _, variable := range res.Variables {
       if strings.HasPrefix(variable.Name, oid+".") {
         index := variable.Name[cut_len:]
