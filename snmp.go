@@ -180,6 +180,7 @@ func getTableFunc(client *snmp.GoSNMP, oid string, expect_type int, report callb
   cut_len := len(oid+".")
 
 if oid == ".1.3.6.1.2.1.2.2.1.8" {
+  fmt.Println(client.Conn.RemoteAddr())
   fmt.Println(time.Now())
 }
 
