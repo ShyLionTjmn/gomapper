@@ -8,6 +8,8 @@ import (
   "errors"
   "time"
   "fmt"
+
+  w "github.com/jimlawless/whereami"
 )
 
 func timeTicks2str(ticks uint) string {
@@ -180,8 +182,15 @@ func getTableFunc(client *snmp.GoSNMP, oid string, expect_type int, report callb
 if oid == ".1.3.6.1.2.1.2.2.1.8" {
   fmt.Println(time.Now())
 }
-  for res, err := client.GetBulk([]string{next_oid}, 0, 10); err == nil; res, err = client.GetBulk([]string{next_oid}, 0, 10) {
+
+  var res *snmp.SnmpPacket
+  var err error
+
+  for res, err = client.GetBulk([]string{next_oid}, 0, 10); err == nil; res, err = client.GetBulk([]string{next_oid}, 0, 10) {
     if res.Error != snmp.NoError {
+if oid == ".1.3.6.1.2.1.2.2.1.8" {
+  fmt.Println(res.Error)
+}
       return nil, errors.New(fmt.Sprintf("Error in PDU: %v", res.Error))
     }
 
@@ -202,28 +211,50 @@ if oid == ".1.3.6.1.2.1.2.2.1.8" {
         if !found {
           ret[index], err = decodeVariable(variable, expect_type)
           if err != nil {
+if oid == ".1.3.6.1.2.1.2.2.1.8" {
+  fmt.Println("error at", w.WhereAmI())
+  fmt.Println(err.Error())
+}
             return nil, err
           }
           vars_matched++
           last_oid = variable.Name
         } else {
           // remote agent running in circles, stop
+if oid == ".1.3.6.1.2.1.2.2.1.8" {
+  fmt.Println("break at", w.WhereAmI())
+}
           done=true
           break
-       }
+        }
       } else {
         //table end
+if oid == ".1.3.6.1.2.1.2.2.1.8" {
+  fmt.Println("break at", w.WhereAmI())
+}
         done=true
         break
       }
     }
     if vars_matched == 0 || done {
+if oid == ".1.3.6.1.2.1.2.2.1.8" {
+  fmt.Println("break at", w.WhereAmI())
+}
       break
     } else {
       next_oid=last_oid
     }
   }
+  if err != nil {
+if oid == ".1.3.6.1.2.1.2.2.1.8" {
+  fmt.Println("error at", w.WhereAmI())
+  fmt.Println(err.Error())
+}
+  }
   if len(ret) == 0 {
+if oid == ".1.3.6.1.2.1.2.2.1.8" {
+  fmt.Println("return at", w.WhereAmI())
+}
     return nil, errors.New("NoSuchInstance")
   }
   return ret, nil
