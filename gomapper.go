@@ -257,6 +257,7 @@ func worker(ws *t_workStruct) {
     Community: "public",
     Version:   snmp.Version2c,
     Timeout:   time.Duration(10) * time.Second,
+    Retries:   3,
 //    Logger:    log.New(os.Stdout, "", 0),
   }
 
