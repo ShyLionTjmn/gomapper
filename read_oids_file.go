@@ -36,7 +36,8 @@ func read_oids_file() (map[int][]t_scanJobGroup, string, error) {
   scanner := bufio.NewScanner(file)
 
   var current_queue int = 0
-  var current_jg = t_scanJobGroup{ Refresh: 60, Match_type: -1, Unmatch_type: mtNone, Items: []t_scanJobItem{} }
+  var current_jg = t_scanJobGroup{ Refresh: 60, Match_type: -1, Unmatch_type: mtNone, Items: []t_scanJobItem{},
+                                   Timeout: DEFAULT_SNMP_TIMEOUT, Retries: DEFAULT_SNMP_RETRIES, MaxRepetitions: DEFAULT_SNMP_MAX_REPETITIONS }
   var end_signalled bool=false
   var first_jg bool=true
 
@@ -72,6 +73,20 @@ func read_oids_file() (map[int][]t_scanJobGroup, string, error) {
       str := strings.Trim(line[len("refresh"):]," \t")
       current_jg.Refresh, err = strconv.Atoi(str)
       if err != nil { return nil, "", errors.New(fmt.Sprintf("%s, in OIDs file at %d", err.Error(), current_line_num)) }
+    } else if strings.Index(line, "timeout") == 0 {
+      str := strings.Trim(line[len("timeout"):]," \t")
+      current_jg.Timeout, err = strconv.ParseInt(str, 10, 64)
+      if err != nil { return nil, "", errors.New(fmt.Sprintf("%s, in OIDs file at %d", err.Error(), current_line_num)) }
+    } else if strings.Index(line, "retries") == 0 {
+      str := strings.Trim(line[len("retries"):]," \t")
+      current_jg.Retries, err = strconv.Atoi(str)
+      if err != nil { return nil, "", errors.New(fmt.Sprintf("%s, in OIDs file at %d", err.Error(), current_line_num)) }
+    } else if strings.Index(line, "max_repetitions") == 0 {
+      str := strings.Trim(line[len("max_repetitions"):]," \t")
+      var u64 uint64
+      u64, err = strconv.ParseUint(str, 10, 8)
+      current_jg.MaxRepetitions = uint8(u64)
+      if err != nil { return nil, "", errors.New(fmt.Sprintf("%s, in OIDs file at %d", err.Error(), current_line_num)) }
     } else if line == "end" || string(line[0]) == "*" || string(line[0]) == "~" || string(line[0]) == "=" || string(line[0]) == "^" {
       if !first_jg {
         if current_jg.Match_type == -1 {
@@ -82,7 +97,8 @@ func read_oids_file() (map[int][]t_scanJobGroup, string, error) {
         } else {
           return nil, "", errors.New(fmt.Sprintf("Empty job group in OIDs file before %d", current_line_num))
         }
-        current_jg=t_scanJobGroup{ Refresh: 60, Match_type: -1, Unmatch_type: mtNone, Items: []t_scanJobItem{} }
+        current_jg=t_scanJobGroup{ Refresh: 60, Match_type: -1, Unmatch_type: mtNone, Items: []t_scanJobItem{},
+                                   Timeout: DEFAULT_SNMP_TIMEOUT, Retries: DEFAULT_SNMP_RETRIES, MaxRepetitions: DEFAULT_SNMP_MAX_REPETITIONS }
         current_queue = 0
       } else {
         if line == "end" {

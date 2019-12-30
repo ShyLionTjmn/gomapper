@@ -38,6 +38,10 @@ import (
   "github.com/marcsauter/single"
 )
 
+const DEFAULT_SNMP_TIMEOUT=10
+const DEFAULT_SNMP_RETRIES=3
+const DEFAULT_SNMP_MAX_REPETITIONS=50
+
 const DB_REFRESH_TIME= 10
 const DB_ERROR_TIME= 5
 
@@ -174,6 +178,9 @@ type t_scanJobItem struct {
 type t_scanJobGroup struct {
   Line		int
   Refresh	int
+  Timeout	int64
+  Retries	int
+  MaxRepetitions uint8
   Last_run	time.Time
   //Last_success	time.Time
   Match_type	int
@@ -256,8 +263,9 @@ func worker(ws *t_workStruct) {
     Port:      uint16(161),
     Community: "public",
     Version:   snmp.Version2c,
-    Timeout:   time.Duration(10) * time.Second,
-    Retries:   3,
+    Timeout:   time.Duration(DEFAULT_SNMP_TIMEOUT) * time.Second,
+    Retries:   DEFAULT_SNMP_RETRIES,
+    MaxRepetitions: DEFAULT_SNMP_MAX_REPETITIONS,
 //    Logger:    log.New(os.Stdout, "", 0),
   }
 
@@ -463,6 +471,11 @@ ITEM:     for ii := 0; ii < len(ws.job[jgi].Items); ii++ {
               }
               red.Do("HSET", queues_key, fmt.Sprint(ws.queue), queue_report)
             }
+
+            client.Timeout = time.Duration(ws.job[jgi].Timeout) * time.Second
+            client.Retries = ws.job[jgi].Retries
+            client.MaxRepetitions = ws.job[jgi].MaxRepetitions
+
             switch ws.job[jgi].Items[ii].Item_type {
             case itOne:
               key_value, err = getOne(client, ws.job[jgi].Items[ii].Oid, ws.job[jgi].Items[ii].Value_type)
