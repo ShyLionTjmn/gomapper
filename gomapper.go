@@ -412,6 +412,7 @@ WORKER_CYCLE:
         }
       }
       ip_oids = ip_oids.Add("_count", keys_count)
+      ip_oids = ip_oids.Add("_sysObjectID", sysObjectID)
       red.Send("MULTI")
       red.Send("DEL", oids_key)
       red.Send("HSET", ip_oids...)

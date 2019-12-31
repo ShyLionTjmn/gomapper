@@ -125,57 +125,7 @@ func getOne(client *snmp.GoSNMP, oid string, expect_type int) (string, error) {
 
   return decodeVariable(res.Variables[0], expect_type)
 }
-/*
-func getTable(client *snmp.GoSNMP, oid string, expect_type int) (map[string]string, error) {
-  ret := make(map[string]string)
 
-  next_oid := oid
-  cut_len := len(oid+".")
-
-  for res, err := client.GetBulk([]string{next_oid}, 0, 10); err == nil; res, err = client.GetBulk([]string{next_oid}, 0, 10) {
-    if res.Error != snmp.NoError {
-      return nil, errors.New(fmt.Sprintf("Error in PDU: %v", res.Error))
-    }
-
-    var vars_matched int=0
-    var done bool=false
-
-    var last_oid string=""
-
-    for _, variable := range res.Variables {
-      if strings.HasPrefix(variable.Name, oid+".") {
-        index := variable.Name[cut_len:]
-        _, found := ret[index]
-        if !found {
-          ret[index], err = decodeVariable(variable, expect_type)
-          if err != nil {
-            return nil, err
-          }
-          vars_matched++
-          last_oid = variable.Name
-        } else {
-          // remote agent running in circles, stop
-          done=true
-          break
-       }
-      } else {
-        //table end
-        done=true
-        break
-      }
-    }
-    if vars_matched == 0 || done {
-      break
-    } else {
-      next_oid=last_oid
-    }
-  }
-  if len(ret) == 0 {
-    return nil, errors.New("NoSuchInstance")
-  }
-  return ret, nil
-}
-*/
 type callback func()
 
 func getTableFunc(client *snmp.GoSNMP, oid string, expect_type int, report callback) (map[string]string, error) {
