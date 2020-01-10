@@ -137,7 +137,7 @@ func getTableFunc(client *snmp.GoSNMP, oid string, expect_type int, report callb
   var res *snmp.SnmpPacket
   var err error
 
-  for res, err = client.GetBulk([]string{next_oid}, 0, 10); err == nil; res, err = client.GetBulk([]string{next_oid}, 0, 10) {
+  for res, err = client.GetBulk([]string{next_oid}, 0, client.MaxRepetitions); err == nil; res, err = client.GetBulk([]string{next_oid}, 0, client.MaxRepetitions) {
     if res.Error != snmp.NoError {
       return nil, errors.New(fmt.Sprintf("Error in PDU: %v", res.Error))
     }
