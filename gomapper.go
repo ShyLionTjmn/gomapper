@@ -226,6 +226,17 @@ func match_sOID(sOID string, match_str string, match_type int) bool {
   }
 }
 
+func debugPub(red redis.Conn, ws *t_workStruct, debug string, debug_keys string, key string, message string) {
+  if red == nil || red.Err() != nil { return }
+  if debug == "" { return }
+  if strings.Index(debug, "*") >= 0 ||
+     (key != "" && strings.Index(debug, "keys") >= 0 && strings.Index(debug_keys, key) >= 0) ||
+     false {
+    //if
+    red.Do("PUBLISH", "debug", fmt.Sprint(time.Now().Format("2006.01.02 15:04:05.000 "), ws.dev_ip, " ", ws.queue, " ", key, " ", message))
+  }
+}
+
 func worker(ws *t_workStruct) {
 //  defer func() {
 //    r := recover();
@@ -285,6 +296,9 @@ func worker(ws *t_workStruct) {
   var graph_keys map[string]string
   var graph_keys_time int64
 
+  var debug_keys string
+  var debug string
+
 WORKER_CYCLE:
   for {
 
@@ -340,6 +354,20 @@ WORKER_CYCLE:
     }
     globalMutex.Unlock()
 
+    if err == nil && red != nil && red.Err() == nil {
+      debug_keys, err = redis.String(red.Do("GET", "ip_debug_keys."+ws.dev_ip))
+      if err == redis.ErrNil {
+        err = nil
+      }
+    }
+
+    if err == nil && red != nil && red.Err() == nil {
+      debug, err = redis.String(red.Do("GET", "ip_debug."+ws.dev_ip))
+      if err == redis.ErrNil {
+        err = nil
+      }
+    }
+
     if err == nil && red != nil {
       queue_report := fmt.Sprintf("%d:%d:run:getSOID", work_start.Unix(), work_start.Unix())
       _, err = red.Do("HSET", queues_key, fmt.Sprint(ws.queue), queue_report)
@@ -354,7 +382,9 @@ WORKER_CYCLE:
     if err == nil && red != nil {
       // get sysObjectID.0
 //fmt.Println("getting sOID", ws.dev_ip, ws.queue)
+      debugPub(red, ws, debug, debug_keys, "sysObjectID", "get")
       val, err = getOne(client, ".1.3.6.1.2.1.1.2.0", vtOid)
+      debugPub(red, ws, debug, debug_keys, "sysObjectID", fmt.Sprint("res: ", val, " ", err))
 
       sOIDstop_time = time.Now()
       sOIDstop = sOIDstop_time.Unix()*1000+int64(sOIDstop_time.Nanosecond()/1000000)
@@ -366,9 +396,11 @@ WORKER_CYCLE:
 
     if err == nil && strings.Index(val, ".1.3.6.1.4.1.") != 0 {
       err = errors.New("Bad sysObjectID: "+val)
+      debugPub(red, ws, debug, debug_keys, "sysObjectID", "ERROR: bad sysObjectID")
     }
 
     if err == nil && sysObjectID != val && red != nil {
+      debugPub(red, ws, debug, debug_keys, "sysObjectID", "new!")
       sysObjectID = val
 
       queue_keys = make(map[string]bool)
@@ -377,7 +409,13 @@ WORKER_CYCLE:
       var ip_oids = redis.Args{}.Add(oids_key)
       for jgi := 0; jgi < len(ws.job); jgi++ {
         ws.job[jgi].Last_run = time.Time{}
-        ws.job[jgi].Matched = match_sOID(sysObjectID, ws.job[jgi].Match_str, ws.job[jgi].Match_type) && !match_sOID(sysObjectID, ws.job[jgi].Unmatch_str, ws.job[jgi].Unmatch_type)
+        match := match_sOID(sysObjectID, ws.job[jgi].Match_str, ws.job[jgi].Match_type)
+        unmatch := !match_sOID(sysObjectID, ws.job[jgi].Unmatch_str, ws.job[jgi].Unmatch_type)
+        ws.job[jgi].Matched = match && unmatch
+        debugPub(red, ws, debug, debug_keys, "oids", fmt.Sprint("match_sOID: ", sysObjectID, " ", ws.job[jgi].Match_str, " ", ws.job[jgi].Match_type, " ", "res:", " ", match))
+        debugPub(red, ws, debug, debug_keys, "oids", "&&")
+        debugPub(red, ws, debug, debug_keys, "oids", fmt.Sprint("!match_sOID:", " ", sysObjectID, " ", sysObjectID, " ", ws.job[jgi].Unmatch_str, " ", ws.job[jgi].Unmatch_type, " ", "res:", " ", unmatch))
+        debugPub(red, ws, debug, debug_keys, "oids", fmt.Sprint("res:", " ", ws.job[jgi].Matched))
 //fmt.Println("match sOID", sysObjectID, "result:", ws.job[jgi].Matched, ws.dev_ip, ws.queue)
         if ws.job[jgi].Matched {
           for ii := 0; ii < len(ws.job[jgi].Items); ii++ {
@@ -448,14 +486,20 @@ JG:   for jgi := 0; jgi < len(ws.job); jgi++ {
 //fmt.Println("matched:", ws.job[jgi].Matched, ws.dev_ip, ws.queue)
         if !ws.job[jgi].Matched { continue }
         jg_next_run := ws.job[jgi].Last_run.Add(time.Duration(ws.job[jgi].Refresh)*time.Second)
-        if  jg_next_run.Before(work_start) || jg_next_run.Equal(work_start)  {
+        debugPub(red, ws, debug, debug_keys, fmt.Sprintf("jg@%d", ws.job[jgi].Line), fmt.Sprint("next_run:", jg_next_run))
+        debugPub(red, ws, debug, debug_keys, fmt.Sprintf("jg@%d", ws.job[jgi].Line), fmt.Sprint("VS work_start", " ", work_start))
+        if  jg_next_run.Before(work_start) || jg_next_run.Equal(work_start) {
+          ws.job[jgi].Last_run=work_start
 
+          debugPub(red, ws, debug, debug_keys, fmt.Sprintf("jg@%d", ws.job[jgi].Line), "run")
           var key_value interface{}
 
 ITEM:     for ii := 0; ii < len(ws.job[jgi].Items); ii++ {
+            debugPub(red, ws, debug, debug_keys, ws.job[jgi].Items[ii].Key, "begin")
             // check if key has ioIfNot option and what that oid is unsupported
             if (ws.job[jgi].Items[ii].Options & ioIfNot) != 0 {
               _, key_exists := queue_keys[ ws.job[jgi].Items[ii].Opt_values[ioIfNot] ]
+              debugPub(red, ws, debug, debug_keys, ws.job[jgi].Items[ii].Key, fmt.Sprint("skip by ifNot", " ", key_exists))
               if key_exists { continue ITEM }
             }
             item_start := time.Now()
@@ -480,9 +524,11 @@ ITEM:     for ii := 0; ii < len(ws.job[jgi].Items); ii++ {
             switch ws.job[jgi].Items[ii].Item_type {
             case itOne:
               key_value, err = getOne(client, ws.job[jgi].Items[ii].Oid, ws.job[jgi].Items[ii].Value_type)
+
             case itTable:
               var key_info = fmt.Sprintf("key: %s, oid: %s, item: %d", ws.job[jgi].Items[ii].Key, ws.job[jgi].Items[ii].Oid, ws.job[jgi].Items[ii].Line)
               key_value, err = getTableFunc(client, ws.job[jgi].Items[ii].Oid, ws.job[jgi].Items[ii].Value_type, func() {
+                debugPub(red, ws, debug, debug_keys, ws.job[jgi].Items[ii].Key, "beat")
                 if last_report_time.Add(time.Second).Before(time.Now()) {
                   last_report_time = time.Now()
                   report_time := last_report_time.Unix()
@@ -491,15 +537,18 @@ ITEM:     for ii := 0; ii < len(ws.job[jgi].Items); ii++ {
                 }
               })
             }
+            debugPub(red, ws, debug, debug_keys, ws.job[jgi].Items[ii].Key, fmt.Sprint("get err:", " ", err))
             if err != nil {
               if len(ws.control_ch) != 0 {
                 err = errInterrupted
+                debugPub(red, ws, debug, debug_keys, ws.job[jgi].Items[ii].Key, "interrupted")
               } else {
                 if err.Error() == "NoSuchInstance" && (ws.job[jgi].Items[ii].Options & ioFail) == 0 {
 //fmt.Println("NoSuchInstance", ws.job[jgi].Items[ii].Oid, ws.dev_ip, ws.queue)
                   //oid not supported, ignore
                   err = nil
                   ws.job[jgi].Items[ii].Value = nil
+                  debugPub(red, ws, debug, debug_keys, ws.job[jgi].Items[ii].Key, "ignore error")
                   continue ITEM
                 }
                 prev_err_text := err.Error()
@@ -507,6 +556,7 @@ ITEM:     for ii := 0; ii < len(ws.job[jgi].Items); ii++ {
               //something bad happened
 //fmt.Println(err.Error(), ws.job[jgi].Items[ii].Oid, ws.dev_ip, ws.queue)
               }
+              debugPub(red, ws, debug, debug_keys, ws.job[jgi].Items[ii].Key, "break JG")
               break JG
             }
             if (ws.job[jgi].Items[ii].Options & ioMul) != 0 {
@@ -567,15 +617,19 @@ ITEM:     for ii := 0; ii < len(ws.job[jgi].Items); ii++ {
 
             queue_keys[ ws.job[jgi].Items[ii].Key ] = true
 //fmt.Println("got value", key_value, ws.dev_ip, ws.queue)
+            debugPub(red, ws, debug, debug_keys, ws.job[jgi].Items[ii].Key, "done OK")
           }
+          debugPub(red, ws, debug, debug_keys, fmt.Sprintf("jg@%d", ws.job[jgi].Line), "done")
+        } else {
+          debugPub(red, ws, debug, debug_keys, fmt.Sprintf("jg@%d", ws.job[jgi].Line), "skip")
         }
-        ws.job[jgi].Last_run=work_start
       } // JG:
     }
 
     // lock redis data for this worker
 
     if err == nil && red != nil {
+      debugPub(red, ws, debug, debug_keys, "save", "saving")
       //all job groups done, save data
 
       keys_args := redis.Args{}.Add(keys_key)
@@ -666,6 +720,7 @@ ITEM:     for ii := 0; ii < len(ws.job[jgi].Items); ii++ {
     }
 
     if err != nil && err != errInterrupted && red != nil && red.Err() == nil {
+      debugPub(red, ws, debug, debug_keys, "error", err.Error())
       red.Do("SET", last_result_key, "error:"+strconv.FormatInt(work_start.Unix(), 10)+":"+strconv.FormatInt(time.Now().Unix(), 10)+":"+err.Error())
     }
 
@@ -699,7 +754,7 @@ ITEM:     for ii := 0; ii < len(ws.job[jgi].Items); ii++ {
       last_report_time = time.Now()
       if err == nil {
         queue_report := fmt.Sprintf("%d:%d:good_sleep:cycle done", time.Now().Unix(), next_run.Unix())
-          red.Do("HSET", queues_key, fmt.Sprint(ws.queue), queue_report)
+        red.Do("HSET", queues_key, fmt.Sprint(ws.queue), queue_report)
       } else if err == errInterrupted {
         queue_report := fmt.Sprintf("%d:%d:quit:%s", time.Now().Unix(), 0, err.Error())
         red.Do("HSET", queues_key, fmt.Sprint(ws.queue), queue_report)
@@ -714,6 +769,8 @@ ITEM:     for ii := 0; ii < len(ws.job[jgi].Items); ii++ {
 //fmt.Println()
 
     worker_timer := time.NewTimer(next_run.Sub(time.Now()))
+
+    debugPub(red, ws, debug, debug_keys, "sleep", fmt.Sprint("sleep until:", " ", next_run))
 
     for {
       select {
@@ -739,6 +796,7 @@ ITEM:     for ii := 0; ii < len(ws.job[jgi].Items); ii++ {
     }
   } //WORKER_CYCLE
   // time to exit
+  debugPub(red, ws, debug, debug_keys, "", "quit")
 }
 
 func read_devlist (red redis.Conn) (M, error) {
