@@ -297,6 +297,8 @@ func worker(ws *t_workStruct) {
 
   var debug string
 
+  var sysUpTime string
+
 WORKER_CYCLE:
   for {
 
@@ -473,6 +475,11 @@ WORKER_CYCLE:
     }
 
     if err == nil && red != nil {
+      //get sysUpTime.0 for graph
+      sysUpTime, err = getOne(client, ".1.3.6.1.2.1.1.3.0", vtUns)
+    }
+
+    if err == nil && red != nil {
 JG:   for jgi := 0; jgi < len(ws.job); jgi++ {
 //fmt.Println("matched:", ws.job[jgi].Matched, ws.dev_ip, ws.queue)
         if !ws.job[jgi].Matched { continue }
@@ -588,14 +595,14 @@ ITEM:     for ii := 0; ii < len(ws.job[jgi].Items); ii++ {
               case itOne:
                 if _, ok := graph_keys[ ws.job[jgi].Items[ii].Key+".0" ]; ok {
                   if red != nil && red.Err() == nil {
-                    red.Do("PUBLISH", "graph", ws.dev_ip+" "+ws.job[jgi].Items[ii].Key+".0 "+fmt.Sprint(key_value))
+                    red.Do("PUBLISH", "graph", ws.dev_ip+" "+sysUpTime+" "+ws.job[jgi].Items[ii].Key+".0 "+fmt.Sprint(key_value))
                   }
                 }
               case itTable:
                 for index, value := range key_value.(map[string]string) {
                   if _, ok := graph_keys[ ws.job[jgi].Items[ii].Key+"."+index ]; ok {
                     if red != nil && red.Err() == nil {
-                      red.Do("PUBLISH", "graph", ws.dev_ip+" "+ws.job[jgi].Items[ii].Key+"."+index+" "+fmt.Sprint(value))
+                      red.Do("PUBLISH", "graph", ws.dev_ip+" "+sysUpTime+" "+ws.job[jgi].Items[ii].Key+"."+index+" "+fmt.Sprint(value))
                     }
                   }
                 }
