@@ -34,7 +34,7 @@ import (
   _ "runtime"
   "github.com/gomodule/redigo/redis"
   "github.com/ShyLionTjmn/redmutex"
-  . "github.com/ShyLionTjmn/aux"
+  . "github.com/ShyLionTjmn/mapaux"
   "github.com/marcsauter/single"
 )
 
